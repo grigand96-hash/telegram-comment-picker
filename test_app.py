@@ -95,6 +95,47 @@ class PickerTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(browser.post("/api/login", headers=headers, json={}).status_code, 403)
             self.assertEqual(browser.options("/api/draw", headers={"Origin": "https://evil.example"}).status_code, 403)
 
+    def test_secret_files_and_internal_docs_are_not_served(self):
+        with TestClient(app.app, base_url="http://127.0.0.1:8894") as browser:
+            for path in ["/credentials.json", "/telegram.session", "/.env", "/.git/config", "/app.py",
+                         "/docs", "/redoc", "/openapi.json", "/%2e%2e/credentials.json"]:
+                self.assertEqual(browser.get(path).status_code, 404, path)
+
+    def test_invalid_login_never_echoes_secrets(self):
+        secret = "PRIVATE_TEST_VALUE"
+        with TestClient(app.app, base_url="http://127.0.0.1:8894") as browser:
+            response = browser.post("/api/login", headers={"Origin": "http://127.0.0.1:8894"},
+                                    json={"api_id": "invalid", "api_hash": secret, "phone": secret})
+            self.assertEqual(response.status_code, 422)
+            self.assertNotIn(secret, response.text)
+
+    def test_large_and_non_json_requests_are_rejected(self):
+        with TestClient(app.app, base_url="http://127.0.0.1:8894") as browser:
+            origin = {"Origin": app.PAGES_ORIGIN}
+            self.assertEqual(browser.post("/api/draw", headers=origin, json={"url": "x" * 9000}).status_code, 413)
+            self.assertEqual(browser.post("/api/draw", headers=origin, content="url=test").status_code, 415)
+
+    def test_origin_and_host_impostors_are_rejected(self):
+        with TestClient(app.app, base_url="http://127.0.0.1:8894") as browser:
+            for origin in ["null", "https://grigand96-hash.github.io.evil.example", "https://evil.example", "http://localhost:9999"]:
+                response = browser.post("/api/draw", headers={"Origin": origin}, json={"url": "https://t.me/example/7"})
+                self.assertEqual(response.status_code, 403)
+                self.assertNotIn("Access-Control-Allow-Origin", response.headers)
+            self.assertEqual(browser.get("/", headers={"Host": "127.0.0.1.evil.example:8894"}).status_code, 403)
+
+    async def test_random_selection_preserves_chosen_message_and_link(self):
+        messages = [SimpleNamespace(id=number, message="<script>test</script>", photo=None, media=None,
+                                   get_sender=AsyncMock(return_value=None)) for number in [10, 20, 30]]
+        app.cached_url = None
+        with patch.object(app, "authorized", AsyncMock(return_value=object())), patch.object(app, "load_comments", AsyncMock(return_value=messages)):
+            for message in messages:
+                with patch.object(app.secrets, "choice", return_value=message) as choose:
+                    result = await app.draw(app.Draw(url="https://t.me/example/7", page_session_id="random-check"))
+                    choose.assert_called_once_with(messages)
+                    self.assertEqual(result["url"], f"https://t.me/example/7?comment={message.id}")
+                    self.assertEqual(result["count"], 3)
+                    self.assertEqual(result["text"], "<script>test</script>")
+
 
 if __name__ == "__main__":
     unittest.main()

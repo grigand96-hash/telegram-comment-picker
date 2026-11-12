@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, Field, SecretStr
 from telethon import TelegramClient, errors, types
 import uvicorn
@@ -17,6 +18,7 @@ import uvicorn
 os.umask(0o077)
 DATA = Path(os.environ.get("ZNWR_PICKER_DATA_DIR", Path.home() / "Codex/context/projects/znwr/telegram-picker-private"))
 DATA.mkdir(parents=True, exist_ok=True, mode=0o700)
+DATA.chmod(0o700)
 CONFIG = DATA / "credentials.json"
 ROOT = Path(__file__).resolve().parent
 client = None
@@ -31,9 +33,11 @@ lock = asyncio.Lock()
 
 
 def make_client(settings):
-    return TelegramClient(str(DATA / "telegram"), settings["api_id"], settings["api_hash"],
-                          receive_updates=False, flood_sleep_threshold=0,
-                          device_model="ZNWR Comment Picker", request_retries=2)
+    telegram = TelegramClient(str(DATA / "telegram"), settings["api_id"], settings["api_hash"],
+                              receive_updates=False, flood_sleep_threshold=0,
+                              device_model="ZNWR Comment Picker", request_retries=2)
+    telegram.session.save_entities = False
+    return telegram
 
 
 def save_credentials():
@@ -53,9 +57,15 @@ async def lifespan(app):
         await client.disconnect()
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 PAGES_ORIGIN = "https://grigand96-hash.github.io"
 LOCAL_ORIGINS = {"http://127.0.0.1:8894", "http://localhost:8894"}
+
+
+@app.exception_handler(RequestValidationError)
+async def invalid_input(request, error):
+    # Validation errors must not echo login credentials or request bodies.
+    return JSONResponse({"detail": "Проверьте заполненные поля."}, status_code=422)
 
 
 @app.middleware("http")
@@ -67,6 +77,12 @@ async def local_only(request: Request, call_next):
     pages_request = origin == PAGES_ORIGIN and request.url.path in {"/api/status", "/api/draw", "/api/progress"}
     if request.method != "GET" and origin not in LOCAL_ORIGINS and not pages_request:
         return JSONResponse({"detail": "Запрос с другого сайта запрещён."}, status_code=403)
+    if request.method == "POST":
+        size = request.headers.get("content-length", "")
+        if not size.isdigit() or int(size) > 8192 or request.headers.get("transfer-encoding"):
+            return JSONResponse({"detail": "Слишком большой запрос."}, status_code=413)
+        if request.headers.get("content-type", "").split(";")[0].strip() != "application/json":
+            return JSONResponse({"detail": "Ожидается JSON."}, status_code=415)
     if request.method == "OPTIONS" and pages_request:
         return JSONResponse({}, headers={
             "Access-Control-Allow-Origin": PAGES_ORIGIN,
@@ -88,6 +104,8 @@ async def local_only(request: Request, call_next):
         response.headers["Access-Control-Allow-Origin"] = PAGES_ORIGIN
         response.headers["Vary"] = "Origin"
     response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["Content-Security-Policy"] = "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
     return response
 
@@ -133,7 +151,7 @@ async def status():
 
 class Login(BaseModel):
     api_id: int = Field(gt=0)
-    api_hash: SecretStr
+    api_hash: SecretStr = Field(min_length=32, max_length=32)
     phone: str = Field(min_length=5, max_length=30)
 
 
