@@ -56,6 +56,16 @@ class PickerTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(browser.get("/", headers={"host": "evil.example"}).status_code, 403)
             self.assertEqual(browser.post("/api/draw", json={"url": "https://t.me/example/7"}, headers={"Origin": "https://evil.example"}).status_code, 403)
 
+    def test_pages_can_draw_but_cannot_authorize_account(self):
+        headers = {"Origin": app.PAGES_ORIGIN}
+        with TestClient(app.app, base_url="http://127.0.0.1:8894") as browser:
+            preflight = browser.options("/api/draw", headers=headers)
+            self.assertEqual(preflight.status_code, 200)
+            self.assertEqual(preflight.headers["Access-Control-Allow-Origin"], app.PAGES_ORIGIN)
+            self.assertEqual(browser.get("/api/status", headers=headers).headers["Access-Control-Allow-Origin"], app.PAGES_ORIGIN)
+            self.assertEqual(browser.post("/api/login", headers=headers, json={}).status_code, 403)
+            self.assertEqual(browser.options("/api/draw", headers={"Origin": "https://evil.example"}).status_code, 403)
+
 
 if __name__ == "__main__":
     unittest.main()

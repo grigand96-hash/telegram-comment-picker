@@ -1,9 +1,11 @@
 "use strict";
 const $ = id => document.getElementById(id);
 let verificationStep = "code";
+const remotePage = !["127.0.0.1", "localhost"].includes(location.hostname);
+const apiOrigin = remotePage ? "http://127.0.0.1:8894" : "";
 
 async function request(path, body) {
-  const response = await fetch(path, body ? {
+  const response = await fetch(apiOrigin + path, body ? {
     method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)
   } : {});
   const data = await response.json();
@@ -29,6 +31,7 @@ async function perform(form, message, action) {
 }
 
 function ready() {
+  $("local-service").hidden = true;
   $("connection").hidden = true;
   $("picker").hidden = false;
   $("post").focus();
@@ -87,13 +90,23 @@ $("post").addEventListener("input", () => {
   $("draw-button").textContent = "Выбрать комментарий";
 });
 
-request("/api/status").then(state => {
-  $("status").textContent = "";
-  if (state.authorized) ready();
-  else $("connection").hidden = false;
-}).catch(error => {
-  $("status").textContent = "";
-  $("connection").hidden = false;
-  $("error").textContent = error.message;
-  $("error").hidden = false;
-});
+async function checkConnection() {
+  $("error").hidden = true;
+  $("status").textContent = "Проверяю подключение…";
+  $("retry").disabled = true;
+  try {
+    const state = await request("/api/status");
+    if (state.authorized) ready();
+    else $(remotePage ? "local-service" : "connection").hidden = false;
+  } catch (error) {
+    $(remotePage ? "local-service" : "connection").hidden = false;
+    $("error").textContent = remotePage ? "Проверьте, что локальный сервис запущен и браузер разрешает подключение к нему." : error.message;
+    $("error").hidden = false;
+  } finally {
+    $("status").textContent = "";
+    $("retry").disabled = false;
+  }
+}
+
+$("retry").addEventListener("click", checkConnection);
+checkConnection();

@@ -52,17 +52,27 @@ async def lifespan(app):
 
 
 app = FastAPI(lifespan=lifespan)
+PAGES_ORIGIN = "https://grigand96-hash.github.io"
+LOCAL_ORIGINS = {"http://127.0.0.1:8894", "http://localhost:8894"}
 
 
 @app.middleware("http")
 async def local_only(request: Request, call_next):
-    # Restrict browser requests to the loopback origin, including protection against DNS rebinding.
+    # Only the published picker may use the loopback service across origins.
     if request.headers.get("host") not in {"127.0.0.1:8894", "localhost:8894"}:
         return JSONResponse({"detail": "Откройте сервис через localhost."}, status_code=403)
-    if request.method != "GET" and request.headers.get("origin") not in {
-        "http://127.0.0.1:8894", "http://localhost:8894"
-    }:
+    origin = request.headers.get("origin")
+    pages_request = origin == PAGES_ORIGIN and request.url.path in {"/api/status", "/api/draw"}
+    if request.method != "GET" and origin not in LOCAL_ORIGINS and not pages_request:
         return JSONResponse({"detail": "Запрос с другого сайта запрещён."}, status_code=403)
+    if request.method == "OPTIONS" and pages_request:
+        return JSONResponse({}, headers={
+            "Access-Control-Allow-Origin": PAGES_ORIGIN,
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+            "Access-Control-Allow-Private-Network": "true",
+            "Vary": "Origin",
+        })
     try:
         response = await call_next(request)
     except errors.FloodWaitError as error:
@@ -72,6 +82,9 @@ async def local_only(request: Request, call_next):
     except (ConnectionError, OSError, asyncio.TimeoutError):
         response = JSONResponse({"detail": "Нет связи с Telegram. Попробуйте ещё раз."}, status_code=503)
     response.headers["Cache-Control"] = "no-store"
+    if pages_request:
+        response.headers["Access-Control-Allow-Origin"] = PAGES_ORIGIN
+        response.headers["Vary"] = "Origin"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Content-Security-Policy"] = "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
     return response
