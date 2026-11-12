@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+*.session*
+credentials*
+*.tmp
+.DS_Store
