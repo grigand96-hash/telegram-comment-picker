@@ -1,5 +1,6 @@
 "use strict";
 const $ = id => document.getElementById(id);
+const pageSessionId = crypto.randomUUID();
 let verificationStep = "code";
 const remotePage = !["127.0.0.1", "localhost"].includes(location.hostname);
 const apiOrigin = remotePage ? "http://127.0.0.1:8894" : "";
@@ -25,6 +26,7 @@ async function perform(form, message, action) {
     $("status").textContent = "";
     $("error").textContent = error.message;
     $("error").hidden = false;
+    $("error").scrollIntoView({block: "nearest"});
   } finally {
     controls.forEach(control => control.disabled = false);
   }
@@ -34,7 +36,8 @@ function ready() {
   $("local-service").hidden = true;
   $("connection").hidden = true;
   $("picker").hidden = false;
-  $("post").focus();
+  $("connection-state").textContent = "Telegram подключён";
+  $("connection-state").classList.add("connected");
 }
 
 $("login").addEventListener("submit", event => {
@@ -79,10 +82,16 @@ function showProgress(state) {
     selecting: "Выбираем случайный комментарий…",
     done: "Комментарий выбран"
   };
+  $("empty-result").hidden = true;
+  $("stage-state").textContent = state.phase === "done" ? "Готово" : "В процессе";
   $("draw-progress").hidden = false;
   $("draw-progress").classList.toggle("done", state.phase === "done");
   $("progress-label").textContent = labels[state.phase] || labels.connecting;
-  $("progress-count").textContent = "Найдено комментариев · " + new Intl.NumberFormat("ru-RU").format(state.count);
+  $("progress-count").textContent = new Intl.NumberFormat("ru-RU").format(state.count);
+  const noun = new Intl.PluralRules("ru-RU").select(state.count);
+  document.querySelector(".progress-caption").textContent = {
+    one: "комментарий найден", few: "комментария найдено", many: "комментариев найдено", other: "комментария найдено"
+  }[noun];
 }
 
 $("draw").addEventListener("submit", event => {
@@ -106,16 +115,24 @@ $("draw").addEventListener("submit", event => {
   timer = setTimeout(poll, 300);
   perform($("draw"), "", async () => {
     try {
-      const result = await request("/api/draw", {url: $("post").value, request_id: requestId});
+      const result = await request("/api/draw", {
+        url: $("post").value,
+        request_id: requestId,
+        page_session_id: pageSessionId
+      });
       polling = false;
       showProgress({phase: "done", count: result.count});
       $("author").textContent = result.author;
       $("text").textContent = result.text;
       $("comment-link").href = result.url;
       $("result").hidden = false;
-      $("draw-button").textContent = "Выбрать ещё раз";
+      $("draw-label").textContent = "Выбрать ещё раз";
     } catch (error) {
       $("draw-progress").hidden = true;
+      $("empty-result").hidden = false;
+      $("stage-state").textContent = "Ошибка";
+      $("empty-heading").textContent = "Выбор не завершён";
+      $("empty-hint").textContent = "Попробуйте запустить его ещё раз";
       throw error;
     } finally {
       polling = false;
@@ -127,7 +144,11 @@ $("draw").addEventListener("submit", event => {
 $("post").addEventListener("input", () => {
   $("result").hidden = true;
   $("draw-progress").hidden = true;
-  $("draw-button").textContent = "Выбрать победителя";
+  $("draw-label").textContent = "Выбрать победителя";
+  $("empty-result").hidden = false;
+  $("stage-state").textContent = "Ожидание";
+  $("empty-heading").textContent = "Готов к розыгрышу";
+  $("empty-hint").textContent = "Выбранный комментарий появится здесь";
 });
 
 async function checkConnection() {
@@ -137,11 +158,17 @@ async function checkConnection() {
   try {
     const state = await request("/api/status");
     if (state.authorized) ready();
-    else $(remotePage ? "local-service" : "connection").hidden = false;
+    else {
+      $(remotePage ? "local-service" : "connection").hidden = false;
+      $("connection-state").textContent = "Требуется подключение";
+    }
   } catch (error) {
     $(remotePage ? "local-service" : "connection").hidden = false;
+    $("connection-state").textContent = "Нет подключения";
+    $("connection-state").classList.remove("connected");
     $("error").textContent = remotePage ? "Проверьте, что локальный сервис запущен и браузер разрешает подключение к нему." : error.message;
     $("error").hidden = false;
+    $("error").scrollIntoView({block: "nearest"});
   } finally {
     $("status").textContent = "";
     $("retry").disabled = false;

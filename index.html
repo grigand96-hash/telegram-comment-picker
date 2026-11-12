@@ -1,58 +1,92 @@
 <!doctype html>
 <html lang="ru">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Рандомайзер для конкурсов в Telegram · ZNWR</title>
-<meta name="description" content="Рандомайзер для конкурсов в Telegram. Вставьте ссылку на пост, выберите случайный комментарий и откройте ссылку на него.">
-<link rel="stylesheet" href="./style.css">
-<script src="./app.js" defer></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Рандомайзер для конкурсов в Telegram · ZNWR</title>
+  <meta name="description" content="Рандомайзер для конкурсов в Telegram. Вставьте ссылку на пост, выберите случайный комментарий и откройте ссылку на него.">
+  <meta name="theme-color" content="#f3f1ec">
+  <link rel="stylesheet" href="./style.css">
+  <script src="./app.js" defer></script>
 </head>
 <body>
-<header><b>ZNWR</b><a href="https://github.com/grigand96-hash/telegram-comment-picker" target="_blank" rel="noopener">Исходный код ↗</a></header>
-<main>
-<h1>Рандомайзер</h1>
-<p class="subtitle">Для конкурсов в Telegram</p>
-<section id="local-service" hidden>
-<h2>Подключите Telegram на этом компьютере</h2>
-<p>Эта страница работает с локальным сервисом, который хранит вашу Telegram-сессию. Запустите его и разрешите странице доступ к локальной сети, если браузер спросит.</p>
-<p><a href="http://127.0.0.1:8894/" target="_blank" rel="noopener">Открыть локальный сервис ↗</a> · <a href="https://github.com/grigand96-hash/telegram-comment-picker#запуск" target="_blank" rel="noopener">Как запустить</a></p>
-<button id="retry" type="button">Проверить подключение</button>
-</section>
-<section id="connection" hidden>
-<h2>Подключите Telegram</h2>
-<p>Данные входа сохраняются на этом компьютере. API ID и API hash можно получить в разделе API development tools на <a href="https://my.telegram.org" target="_blank" rel="noopener">my.telegram.org</a>.</p>
-<form id="login">
-<label for="api-id">API ID</label><input id="api-id" inputmode="numeric" required autocomplete="off">
-<label for="api-hash">API hash</label><input id="api-hash" type="password" required autocomplete="off">
-<label for="phone">Номер телефона</label><input id="phone" type="tel" placeholder="+375…" required autocomplete="tel">
-<button>Получить код</button>
-</form>
-<form id="verify" hidden>
-<label id="verify-label" for="verification">Код из Telegram</label>
-<input id="verification" type="password" autocomplete="one-time-code" required>
-<button>Войти</button>
-</form>
-</section>
-<section id="picker" hidden>
-<form id="draw">
-<label for="post">Ссылка на конкурсный пост</label>
-<input id="post" type="url" value="https://t.me/znwr_home/7079" required>
-<button id="draw-button">Выбрать победителя</button>
-</form>
-<p class="note">Каждый комментарий имеет одинаковый шанс. При повторном выборе используется уже загруженная ветка.</p>
-<div id="draw-progress" class="progress" role="status" hidden>
-<span class="spinner" aria-hidden="true"></span>
-<div><strong id="progress-label">Подключаемся к Telegram…</strong><p id="progress-count">Найдено комментариев · 0</p></div>
-</div>
-<article id="result" hidden>
-<h2 id="author"></h2>
-<p id="text"></p>
-<a id="comment-link" target="_blank" rel="noopener noreferrer">Открыть комментарий в Telegram ↗</a>
-</article>
-</section>
-<p id="status" role="status">Проверяю подключение…</p>
-<p id="error" role="alert" hidden></p>
-</main>
+  <header class="site-header">
+    <b class="wordmark">ZNWR</b>
+    <a class="source-link" href="https://github.com/grigand96-hash/telegram-comment-picker" target="_blank" rel="noopener">Исходный код <span aria-hidden="true">↗</span></a>
+  </header>
+  <main>
+    <div class="intro">
+      <div>
+        <h1>Рандомайзер</h1>
+        <p class="subtitle">Для конкурсов в Telegram</p>
+      </div>
+      <p id="connection-state" class="connection-state" role="status">Проверяем Telegram</p>
+    </div>
+
+    <p id="error" class="error-message" role="alert" hidden></p>
+    <section id="local-service" class="setup-panel" hidden>
+      <h2>Подключите Telegram на этом компьютере</h2>
+      <p>Эта страница работает с локальным сервисом, который хранит вашу Telegram-сессию. Запустите его и разрешите странице доступ к локальной сети, если браузер спросит.</p>
+      <div class="setup-links">
+        <a href="http://127.0.0.1:8894/" target="_blank" rel="noopener">Открыть локальный сервис ↗</a>
+        <a href="https://github.com/grigand96-hash/telegram-comment-picker#запуск" target="_blank" rel="noopener">Как запустить</a>
+      </div>
+      <button id="retry" type="button">Проверить подключение</button>
+    </section>
+
+    <section id="connection" class="setup-panel" hidden>
+      <h2>Подключите Telegram</h2>
+      <p>Данные входа сохраняются на этом компьютере. API ID и API hash доступны в разделе API development tools на <a href="https://my.telegram.org" target="_blank" rel="noopener">my.telegram.org ↗</a>.</p>
+      <form id="login">
+        <div class="credentials-row">
+          <div><label for="api-id">API ID</label><input id="api-id" inputmode="numeric" required autocomplete="off"></div>
+          <div><label for="api-hash">API hash</label><input id="api-hash" type="password" required autocomplete="off"></div>
+        </div>
+        <label for="phone">Номер телефона</label>
+        <input id="phone" type="tel" placeholder="+375…" required autocomplete="tel">
+        <button>Получить код</button>
+      </form>
+      <form id="verify" hidden>
+        <label id="verify-label" for="verification">Код из Telegram</label>
+        <input id="verification" type="password" autocomplete="one-time-code" required>
+        <button>Войти</button>
+      </form>
+    </section>
+
+    <section id="picker" class="workspace" hidden aria-label="Выбор комментария">
+      <div class="controls">
+        <form id="draw">
+          <label for="post">Ссылка на конкурсный пост</label>
+          <input id="post" type="url" value="https://t.me/znwr_home/7079" required aria-describedby="draw-note" spellcheck="false" autocapitalize="none" autocomplete="off">
+          <button id="draw-button"><span id="draw-label">Выбрать победителя</span><span class="button-arrow" aria-hidden="true">↗</span></button>
+        </form>
+        <p id="draw-note" class="note">Каждый комментарий имеет одинаковый шанс.</p>
+        <div class="repeat-note">
+          <span class="repeat-symbol" aria-hidden="true">↻</span>
+          <p>Выбирайте повторно из того же списка.<br>Обновите страницу, чтобы собрать комментарии заново.</p>
+        </div>
+      </div>
+      <div class="result-stage">
+        <div class="stage-header"><span>Результат розыгрыша</span><span id="stage-state">Ожидание</span></div>
+        <div id="empty-result" class="empty-result">
+          <div class="ticket-symbol" aria-hidden="true"><span>?</span></div>
+          <h2 id="empty-heading">Готов к розыгрышу</h2>
+          <p id="empty-hint">Выбранный комментарий появится здесь</p>
+        </div>
+        <div id="draw-progress" class="progress" role="status" hidden>
+          <div class="progress-heading"><span class="spinner" aria-hidden="true"></span><strong id="progress-label">Подключаемся к Telegram…</strong></div>
+          <p id="progress-count" class="progress-count">0</p>
+          <p class="progress-caption">комментариев найдено</p>
+        </div>
+        <article id="result" hidden>
+          <p class="result-label">Выбранный комментарий</p>
+          <h2 id="author"></h2>
+          <p id="text" tabindex="0" aria-label="Текст комментария"></p>
+          <a id="comment-link" target="_blank" rel="noopener noreferrer">Открыть в Telegram <span aria-hidden="true">↗</span></a>
+        </article>
+      </div>
+    </section>
+    <p id="status" class="status-message" role="status">Проверяю подключение…</p>
+  </main>
 </body>
 </html>
