@@ -3,14 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ZNWR · Случайный комментарий</title>
+<title>Рандомайзер для конкурсов в Telegram · ZNWR</title>
+<meta name="description" content="Рандомайзер для конкурсов в Telegram. Вставьте ссылку на пост, выберите случайный комментарий и откройте ссылку на него.">
 <link rel="stylesheet" href="/style.css">
 <script src="/app.js" defer></script>
 </head>
 <body>
 <header><b>ZNWR</b><a href="https://github.com/grigand96-hash/telegram-comment-picker" target="_blank" rel="noopener">Исходный код ↗</a></header>
 <main>
-<h1>Случайный<br>комментарий</h1>
+<h1>Рандомайзер</h1>
+<p class="subtitle">Для конкурсов в Telegram</p>
 <section id="connection" hidden>
 <h2>Подключите Telegram</h2>
 <p>Данные входа сохраняются на этом компьютере. API ID и API hash можно получить в разделе API development tools на <a href="https://my.telegram.org" target="_blank" rel="noopener">my.telegram.org</a>.</p>
@@ -28,7 +30,7 @@
 </section>
 <section id="picker" hidden>
 <form id="draw">
-<label for="post">Ссылка на пост</label>
+<label for="post">Ссылка на конкурсный пост</label>
 <input id="post" type="url" value="https://t.me/znwr_home/7079" required>
 <button id="draw-button">Выбрать комментарий</button>
 </form>
