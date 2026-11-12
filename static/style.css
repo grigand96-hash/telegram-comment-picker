@@ -22,4 +22,11 @@ button:hover:not(:disabled) { background: #a12c29; }
 article { margin-top: 27px; border-top: 1px solid #dedbd5; padding-top: 15px; }
 #text { white-space: pre-wrap; overflow-wrap: anywhere; }
 #error { color: #a12c29; }
+.progress { display: flex; gap: 14px; align-items: center; padding: 20px 0; border-top: 1px solid #dedbd5; }
+.progress p { margin: 3px 0 0; font-size: 14px; color: #625f59; }
+.spinner { width: 22px; height: 22px; flex: 0 0 22px; border: 2px solid #dedbd5; border-top-color: #a12c29; border-radius: 50%; animation: spin 900ms linear infinite; }
+.progress.done .spinner { animation: none; border: 0; border-radius: 0; color: #315e40; font-size: 23px; }
+.progress.done .spinner::after { content: "✓"; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media(prefers-reduced-motion:reduce) { .spinner { animation: none; } }
 @media(max-width:600px) { main { margin-top: 32px; } }

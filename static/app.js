@@ -71,23 +71,63 @@ $("verify").addEventListener("submit", event => {
   });
 });
 
+function showProgress(state) {
+  const labels = {
+    waiting: "Ожидаем завершения предыдущего запроса…",
+    connecting: "Подключаемся к Telegram…",
+    collecting: "Собираем комментарии…",
+    selecting: "Выбираем случайный комментарий…",
+    done: "Комментарий выбран"
+  };
+  $("draw-progress").hidden = false;
+  $("draw-progress").classList.toggle("done", state.phase === "done");
+  $("progress-label").textContent = labels[state.phase] || labels.connecting;
+  $("progress-count").textContent = "Найдено комментариев · " + new Intl.NumberFormat("ru-RU").format(state.count);
+}
+
 $("draw").addEventListener("submit", event => {
   event.preventDefault();
   $("result").hidden = true;
-  perform($("draw"), "Загружаю комментарии и выбираю один. Большая ветка может занять несколько минут…", async () => {
-    const result = await request("/api/draw", {url: $("post").value});
-    $("author").textContent = result.author;
-    $("text").textContent = result.text;
-    $("count").textContent = "Комментариев в выборке · " + result.count;
-    $("comment-link").href = result.url;
-    $("result").hidden = false;
-    $("draw-button").textContent = "Выбрать ещё раз";
+  const requestId = crypto.randomUUID();
+  let polling = true;
+  let timer;
+  showProgress({phase: "connecting", count: 0});
+
+  async function poll() {
+    try {
+      const state = await request("/api/progress?request_id=" + encodeURIComponent(requestId));
+      if (polling) showProgress(state);
+    } catch {
+      // The draw response provides the final error if the connection fails.
+    }
+    if (polling) timer = setTimeout(poll, 500);
+  }
+
+  timer = setTimeout(poll, 300);
+  perform($("draw"), "", async () => {
+    try {
+      const result = await request("/api/draw", {url: $("post").value, request_id: requestId});
+      polling = false;
+      showProgress({phase: "done", count: result.count});
+      $("author").textContent = result.author;
+      $("text").textContent = result.text;
+      $("comment-link").href = result.url;
+      $("result").hidden = false;
+      $("draw-button").textContent = "Выбрать ещё раз";
+    } catch (error) {
+      $("draw-progress").hidden = true;
+      throw error;
+    } finally {
+      polling = false;
+      clearTimeout(timer);
+    }
   });
 });
 
 $("post").addEventListener("input", () => {
   $("result").hidden = true;
-  $("draw-button").textContent = "Выбрать комментарий";
+  $("draw-progress").hidden = true;
+  $("draw-button").textContent = "Выбрать победителя";
 });
 
 async function checkConnection() {

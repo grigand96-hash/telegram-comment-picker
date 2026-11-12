@@ -1,5 +1,6 @@
 import os
 import tempfile
+import asyncio
 import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -14,6 +15,22 @@ import app
 
 
 class PickerTests(unittest.IsolatedAsyncioTestCase):
+    async def test_progress_is_readable_before_collection_finishes(self):
+        first_page = asyncio.Event()
+        resume = asyncio.Event()
+        async def messages(*args, **kwargs):
+            yield types.Message(id=1, peer_id=types.PeerChannel(1), message="First")
+            first_page.set()
+            await resume.wait()
+            yield types.Message(id=2, peer_id=types.PeerChannel(1), message="Second")
+        app.progress.update(request_id="test", phase="collecting", count=0)
+        loading = asyncio.create_task(app.load_comments(SimpleNamespace(iter_messages=messages), "example", 1))
+        await first_page.wait()
+        self.assertEqual(await app.draw_progress("test"), {"phase": "collecting", "count": 1})
+        self.assertEqual(await app.draw_progress("different-request"), {"phase": "waiting", "count": 0})
+        resume.set()
+        self.assertEqual(len(await loading), 2)
+
     def test_post_urls(self):
         self.assertEqual(app.parse_post("https://t.me/znwr_home/7079?single"), ("znwr_home", 7079, "https://t.me/znwr_home/7079"))
         for url in ["https://evil.example/znwr_home/7079", "https://t.me@evil.example/a/1", "https://t.me/znwr_home", "http://t.me/a/1"]:

@@ -25,6 +25,7 @@ phone = None
 phone_code_hash = None
 cached_url = None
 comments = []
+progress = {"request_id": None, "phase": "idle", "count": 0}
 lock = asyncio.Lock()
 
 
@@ -62,7 +63,7 @@ async def local_only(request: Request, call_next):
     if request.headers.get("host") not in {"127.0.0.1:8894", "localhost:8894"}:
         return JSONResponse({"detail": "Откройте сервис через localhost."}, status_code=403)
     origin = request.headers.get("origin")
-    pages_request = origin == PAGES_ORIGIN and request.url.path in {"/api/status", "/api/draw"}
+    pages_request = origin == PAGES_ORIGIN and request.url.path in {"/api/status", "/api/draw", "/api/progress"}
     if request.method != "GET" and origin not in LOCAL_ORIGINS and not pages_request:
         return JSONResponse({"detail": "Запрос с другого сайта запрещён."}, status_code=403)
     if request.method == "OPTIONS" and pages_request:
@@ -196,11 +197,20 @@ async def load_comments(telegram, channel, post):
     async for message in telegram.iter_messages(channel, reply_to=post, limit=None):
         if isinstance(message, types.Message):
             loaded.append(message)
+            progress["count"] = len(loaded)
     return loaded
 
 
 class Draw(BaseModel):
     url: str = Field(max_length=2048)
+    request_id: str = Field(default="", max_length=64)
+
+
+@app.get("/api/progress")
+async def draw_progress(request_id: str):
+    if request_id != progress["request_id"]:
+        return {"phase": "waiting", "count": 0}
+    return {"phase": progress["phase"], "count": progress["count"]}
 
 
 @app.post("/api/draw")
@@ -208,8 +218,10 @@ async def draw(data: Draw):
     global cached_url, comments
     channel, post, url = parse_post(data.url)
     async with lock:
+        progress.update(request_id=data.request_id, phase="connecting", count=0)
         telegram = await authorized()
         if cached_url != url:
+            progress["phase"] = "collecting"
             try:
                 loaded = await load_comments(telegram, channel, post)
             except (ValueError, errors.MsgIdInvalidError):
@@ -218,6 +230,7 @@ async def draw(data: Draw):
                 raise HTTPException(400, "Под этим постом нет доступных комментариев.")
             comments = loaded
             cached_url = url
+        progress.update(phase="selecting", count=len(comments))
         selected = secrets.choice(comments)
         sender = await selected.get_sender()
         author = "Автор комментария"
@@ -228,6 +241,7 @@ async def draw(data: Draw):
             if getattr(sender, "username", None):
                 author += " · @" + sender.username
         caption = selected.message or ("Фото" if selected.photo else "Вложение" if selected.media else "Комментарий")
+        progress["phase"] = "done"
         return {"author": author, "text": caption[:1500], "count": len(comments),
                 "url": f"{url}?comment={selected.id}"}
 
