@@ -58,6 +58,18 @@ class PickerTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(second["count"], 1)
             self.assertEqual(loader.await_count, 1)
 
+    async def test_page_refresh_collects_comments_again(self):
+        app.cached_url = None
+        message = SimpleNamespace(id=42, message="Test", photo=None, media=None,
+                                  get_sender=AsyncMock(return_value=None))
+        with patch.object(app, "authorized", AsyncMock(return_value=object())), patch.object(app, "load_comments", AsyncMock(return_value=[message])) as loader:
+            first_page = app.Draw(url="https://t.me/example/7", page_session_id="page-one")
+            await app.draw(first_page)
+            await app.draw(first_page)
+            self.assertEqual(loader.await_count, 1)
+            await app.draw(app.Draw(url="https://t.me/example/7", page_session_id="page-two"))
+            self.assertEqual(loader.await_count, 2)
+
     async def test_failed_import_never_commits_partial_list(self):
         app.cached_url = "https://t.me/previous/1"
         app.comments = ["previous"]

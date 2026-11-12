@@ -24,6 +24,7 @@ credentials = None
 phone = None
 phone_code_hash = None
 cached_url = None
+cached_page_session = None
 comments = []
 progress = {"request_id": None, "phase": "idle", "count": 0}
 lock = asyncio.Lock()
@@ -204,6 +205,7 @@ async def load_comments(telegram, channel, post):
 class Draw(BaseModel):
     url: str = Field(max_length=2048)
     request_id: str = Field(default="", max_length=64)
+    page_session_id: str = Field(default="", max_length=64)
 
 
 @app.get("/api/progress")
@@ -215,12 +217,12 @@ async def draw_progress(request_id: str):
 
 @app.post("/api/draw")
 async def draw(data: Draw):
-    global cached_url, comments
+    global cached_url, cached_page_session, comments
     channel, post, url = parse_post(data.url)
     async with lock:
         progress.update(request_id=data.request_id, phase="connecting", count=0)
         telegram = await authorized()
-        if cached_url != url:
+        if cached_url != url or cached_page_session != data.page_session_id:
             progress["phase"] = "collecting"
             try:
                 loaded = await load_comments(telegram, channel, post)
@@ -230,6 +232,7 @@ async def draw(data: Draw):
                 raise HTTPException(400, "Под этим постом нет доступных комментариев.")
             comments = loaded
             cached_url = url
+            cached_page_session = data.page_session_id
         progress.update(phase="selecting", count=len(comments))
         selected = secrets.choice(comments)
         sender = await selected.get_sender()
