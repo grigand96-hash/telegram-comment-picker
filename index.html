@@ -38,11 +38,14 @@
 <form id="draw">
 <label for="post">Ссылка на конкурсный пост</label>
 <input id="post" type="url" value="https://t.me/znwr_home/7079" required>
-<button id="draw-button">Выбрать комментарий</button>
+<button id="draw-button">Выбрать победителя</button>
 </form>
 <p class="note">Каждый комментарий имеет одинаковый шанс. При повторном выборе используется уже загруженная ветка.</p>
+<div id="draw-progress" class="progress" role="status" hidden>
+<span class="spinner" aria-hidden="true"></span>
+<div><strong id="progress-label">Подключаемся к Telegram…</strong><p id="progress-count">Найдено комментариев · 0</p></div>
+</div>
 <article id="result" hidden>
-<p class="count" id="count"></p>
 <h2 id="author"></h2>
 <p id="text"></p>
 <a id="comment-link" target="_blank" rel="noopener noreferrer">Открыть комментарий в Telegram ↗</a>
